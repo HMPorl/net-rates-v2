@@ -794,7 +794,7 @@ if not st.session_state.authenticated:
 # -------------------------------
 # Main Application Header
 # -------------------------------
-st.markdown("# 🚀 Net Rates Calculator")
+st.markdown("# 🚀 Net Rates Calculator V2")
 st.markdown("*Production Version - Enhanced Features*")
 st.markdown("---")
 

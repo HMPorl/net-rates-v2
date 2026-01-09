@@ -207,6 +207,68 @@ def handle_file_loading():
     
     return False
 
+def apply_pending_custom_prices(df):
+    """
+    Apply pending custom prices from a loaded progress file to session state.
+    This function is called after DataFrame is loaded to map item categories to indices.
+    
+    Args:
+        df: The loaded DataFrame with ItemCategory column
+    
+    Returns:
+        bool: True if prices were applied, False otherwise
+    """
+    if not st.session_state.get('pending_custom_prices') or not st.session_state.get('loading_success'):
+        return False
+    
+    try:
+        pending_prices = st.session_state['pending_custom_prices']
+        
+        # Clear ALL existing custom price keys first
+        for key in list(st.session_state.keys()):
+            if key.startswith("price_"):
+                del st.session_state[key]
+        
+        # Create a reverse lookup dictionary for O(1) performance instead of O(n²)
+        item_category_to_index = {}
+        for idx, row in df.iterrows():
+            item_category_to_index[str(row["ItemCategory"])] = idx
+        
+        prices_set = 0
+        total_to_process = len([k for k in pending_prices.keys() if k in item_category_to_index])
+        
+        # Show progress indicator for large datasets
+        progress_placeholder = None
+        if total_to_process > 20:
+            progress_placeholder = st.empty()
+            progress_placeholder.info(f"🔄 Processing {total_to_process} custom prices...")
+        
+        # Process all custom prices efficiently - handles 100+ prices
+        for item_category, price_value in pending_prices.items():
+            if item_category in item_category_to_index and price_value:
+                idx = item_category_to_index[item_category]
+                price_key = f"price_{idx}"
+                st.session_state[price_key] = str(price_value)
+                prices_set += 1
+        
+        # Clear progress indicator and show success
+        if progress_placeholder:
+            progress_placeholder.empty()
+            st.success(f"✅ Successfully loaded {prices_set} custom prices from progress file")
+        
+        # Clear the pending data
+        del st.session_state['pending_custom_prices']
+        st.session_state['loading_success'] = False
+        st.success("✅ Progress loaded successfully!")
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"Error applying custom prices: {e}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
+        return False
+
 # Process file loading
 loading_happened = handle_file_loading()
 
@@ -1450,54 +1512,7 @@ if uploaded_file:
         excel_source = "uploaded"
         
         # Handle loaded custom prices after DataFrame is available
-        if st.session_state.get('pending_custom_prices') and st.session_state.get('loading_success'):
-            try:
-                pending_prices = st.session_state['pending_custom_prices']
-                
-                # Clear ALL existing custom price keys first
-                for key in list(st.session_state.keys()):
-                    if key.startswith("price_"):
-                        del st.session_state[key]
-                
-                # Now map the loaded prices to DataFrame indices - OPTIMIZED FOR LARGE DATASETS
-                # Create a reverse lookup dictionary for O(1) performance instead of O(n²)
-                item_category_to_index = {}
-                for idx, row in df.iterrows():
-                    item_category_to_index[str(row["ItemCategory"])] = idx
-                
-                prices_set = 0
-                total_to_process = len([k for k in pending_prices.keys() if k in item_category_to_index])
-                
-                # Show progress indicator for large datasets
-                if total_to_process > 20:
-                    progress_placeholder = st.empty()
-                    progress_placeholder.info(f"🔄 Processing {total_to_process} custom prices...")
-                
-                # Process all custom prices efficiently - handles 100+ prices
-                for item_category, price_value in pending_prices.items():
-                    if item_category in item_category_to_index and price_value:
-                        idx = item_category_to_index[item_category]
-                        price_key = f"price_{idx}"
-                        st.session_state[price_key] = str(price_value)
-                        prices_set += 1
-                        
-                
-                # Clear progress indicator
-                if total_to_process > 20:
-                    progress_placeholder.empty()
-                
-                # Show success message
-                    st.success(f"✅ Successfully loaded {prices_set} custom prices from progress file")
-                
-                # Clear the pending data and show success
-                del st.session_state['pending_custom_prices']
-                st.session_state['loading_success'] = False
-                st.success("✅ Progress loaded successfully!")
-                
-            except Exception as e:
-                st.error(f"Error applying custom prices: {e}")
-                import traceback
-                st.error(f"Traceback: {traceback.format_exc()}")
+        apply_pending_custom_prices(df)
         
         st.success(f"✅ Excel file uploaded: {uploaded_file.name}")
         
@@ -1507,7 +1522,6 @@ if uploaded_file:
 elif os.path.exists(DEFAULT_EXCEL_PATH):
     try:
         # Get file modification time for cache invalidation
-        import os
         mod_time = os.path.getmtime(DEFAULT_EXCEL_PATH)
         mod_time_readable = datetime.fromtimestamp(mod_time, tz=get_uk_time().tzinfo).strftime("%Y-%m-%d %H:%M:%S BST")
         
@@ -1516,54 +1530,7 @@ elif os.path.exists(DEFAULT_EXCEL_PATH):
         excel_source = "default"
         
         # Handle loaded custom prices after DataFrame is available
-        if st.session_state.get('pending_custom_prices') and st.session_state.get('loading_success'):
-            try:
-                pending_prices = st.session_state['pending_custom_prices']
-                
-                # Clear ALL existing custom price keys first
-                for key in list(st.session_state.keys()):
-                    if key.startswith("price_"):
-                        del st.session_state[key]
-                
-                # Now map the loaded prices to DataFrame indices - OPTIMIZED FOR LARGE DATASETS
-                # Create a reverse lookup dictionary for O(1) performance instead of O(n²)
-                item_category_to_index = {}
-                for idx, row in df.iterrows():
-                    item_category_to_index[str(row["ItemCategory"])] = idx
-                
-                prices_set = 0
-                total_to_process = len([k for k in pending_prices.keys() if k in item_category_to_index])
-                
-                # Show progress indicator for large datasets
-                if total_to_process > 20:
-                    progress_placeholder = st.empty()
-                    progress_placeholder.info(f"🔄 Processing {total_to_process} custom prices...")
-                
-                # Process all custom prices efficiently - handles 100+ prices
-                for item_category, price_value in pending_prices.items():
-                    if item_category in item_category_to_index and price_value:
-                        idx = item_category_to_index[item_category]
-                        price_key = f"price_{idx}"
-                        st.session_state[price_key] = str(price_value)
-                        prices_set += 1
-                        
-                
-                # Clear progress indicator
-                if total_to_process > 20:
-                    progress_placeholder.empty()
-                
-                # Show success message
-                    st.success(f"✅ Successfully loaded {prices_set} custom prices from progress file")
-                
-                # Clear the pending data and show success
-                del st.session_state['pending_custom_prices']
-                st.session_state['loading_success'] = False
-                st.success("✅ Progress loaded successfully!")
-                
-            except Exception as e:
-                st.error(f"Error applying custom prices: {e}")
-                import traceback
-                st.error(f"Traceback: {traceback.format_exc()}")
+        apply_pending_custom_prices(df)
         
         st.success(f"✅ Using default Excel data (Last modified: {mod_time_readable})")
         

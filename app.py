@@ -111,7 +111,7 @@ def save_config(config):
 # Streamlit Page Configuration
 # -------------------------------
 st.set_page_config(
-    page_title="Net Rates Calculator",
+    page_title="Net Rates Calculator V2",
     page_icon="🚀",
     layout="wide"
 )

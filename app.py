@@ -46,6 +46,13 @@ CONFIG_FILE = "config.json"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_EXCEL_PATH = os.path.join(SCRIPT_DIR, "Net rates Webapp.xlsx")
 
+# Transport charge types and default values (used in multiple places)
+TRANSPORT_TYPES = [
+    "Standard - small tools", "Towables", "Non-mechanical", "Fencing",
+    "Tower", "Powered Access", "Low-level Access", "Long Distance"
+]
+DEFAULT_TRANSPORT_CHARGES = ["5", "7.5", "10", "15", "5", "Negotiable", "5", "15"]
+
 # EMAIL SERVICE CONFIGURATION
 # SendGrid API Configuration - Cloud Compatible
 try:
@@ -357,13 +364,7 @@ def process_excel_to_json(excel_file, global_discount, customer_name, df):
         
         # Generate transport charges with default values (same as Save Progress)
         transport_charges = {}
-        transport_types = [
-            "Standard - small tools", "Towables", "Non-mechanical", "Fencing",
-            "Tower", "Powered Access", "Low-level Access", "Long Distance"
-        ]
-        default_charges = ["5", "7.5", "10", "15", "5", "Negotiable", "5", "15"]
-        
-        for i, (transport_type, default_value) in enumerate(zip(transport_types, default_charges)):
+        for i, default_value in enumerate(DEFAULT_TRANSPORT_CHARGES):
             transport_charges[f"transport_{i}"] = default_value
         
         # Create JSON in same format as Save Progress
@@ -933,14 +934,8 @@ def generate_customer_pdf(df, customer_name, header_pdf_file, include_custom_tab
         page_height = page3.rect.height
 
         # Get transport data from session state
-        transport_types = [
-            "Standard - small tools", "Towables", "Non-mechanical", "Fencing",
-            "Tower", "Powered Access", "Low-level Access", "Long Distance"
-        ]
-        default_charges = ["5", "7.5", "10", "15", "5", "Negotiable", "5", "15"]
-        
         transport_data = []
-        for i, (transport_type, default_value) in enumerate(zip(transport_types, default_charges)):
+        for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
             charge = st.session_state.get(f"transport_{i}", default_value)
             transport_data.append([transport_type, charge])
 
@@ -2107,17 +2102,9 @@ if df is not None and header_pdf_file:
     # -------------------------------
     st.markdown("### Transport Charges")
 
-    transport_types = [
-        "Standard - small tools", "Towables", "Non-mechanical", "Fencing",
-        "Tower", "Powered Access", "Low-level Access", "Long Distance"
-    ]
-
-    # Default values in the same order
-    default_charges = ["5", "7.5", "10", "15", "5", "Negotiable", "5", "15"]
-
     transport_inputs = []
 
-    for i, (transport_type, default_value) in enumerate(zip(transport_types, default_charges)):
+    for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
         col1, col2 = st.columns([3, 2])
         with col1:
             st.markdown(f"**{transport_type}**")
@@ -2477,13 +2464,7 @@ with st.sidebar:
         
         # Create transport charges DataFrame using proper UI transport types
         transport_inputs = []
-        transport_types = [
-            "Standard - small tools", "Towables", "Non-mechanical", "Fencing",
-            "Tower", "Powered Access", "Low-level Access", "Long Distance"
-        ]
-        default_charges = ["5", "7.5", "10", "15", "5", "Negotiable", "5", "15"]
-        
-        for i, (transport_type, default_value) in enumerate(zip(transport_types, default_charges)):
+        for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
             charge = st.session_state.get(f"transport_{i}", default_value)
             if charge:  # Only include if there's a value
                 transport_inputs.append({
@@ -2707,13 +2688,7 @@ with st.sidebar:
             
             # Create transport charges DataFrame using proper UI transport types
             transport_inputs = []
-            transport_types = [
-                "Standard - small tools", "Towables", "Non-mechanical", "Fencing",
-                "Tower", "Powered Access", "Low-level Access", "Long Distance"
-            ]
-            default_charges = ["5", "7.5", "10", "15", "5", "Negotiable", "5", "15"]
-            
-            for i, (transport_type, default_value) in enumerate(zip(transport_types, default_charges)):
+            for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
                 charge = st.session_state.get(f"transport_{i}", default_value)
                 if charge:  # Only include if there's a value
                     transport_inputs.append({

@@ -43,6 +43,8 @@ except ImportError:
 # Configuration Management
 # -------------------------------
 CONFIG_FILE = "config.json"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_EXCEL_PATH = os.path.join(SCRIPT_DIR, "Net rates Webapp.xlsx")
 
 # EMAIL SERVICE CONFIGURATION
 # SendGrid API Configuration - Cloud Compatible
@@ -635,32 +637,11 @@ if not os.path.exists("progress_saves"):
 # -------------------------------
 # File Uploads and Inputs
 # -------------------------------
-# Configuration
-# -------------------------------
-import os
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_EXCEL_PATH = os.path.join(SCRIPT_DIR, "Net rates Webapp.xlsx")
-
-def get_available_pdf_files():
-    """Get list of available PDF files - not cached to always show latest files"""
-    try:
-        pdf_pattern = os.path.join(SCRIPT_DIR, "*.pdf")
-        pdf_files = glob.glob(pdf_pattern)
-        # Return just the filenames, not the full paths
-        return sorted([os.path.basename(pdf_file) for pdf_file in pdf_files])
-    except Exception as e:
-        st.error(f"Error scanning for PDF files: {e}")
-        return []
 
 @st.cache_data
 def load_excel(file):
     """Load Excel file with caching"""
     return pd.read_excel(file, engine='openpyxl')
-
-@st.cache_data
-def load_excel_with_timestamp(file_path, timestamp):
-    """Load Excel file with timestamp-based cache invalidation"""
-    return pd.read_excel(file_path, engine='openpyxl')
 
 @st.cache_data
 def read_pdf_header(file):
@@ -2881,10 +2862,6 @@ with st.sidebar:
             st.info("📋 Upload an Excel file to convert")
         if not customer_name_json:
             st.info("📋 Enter customer name")
-
-
-
-
 
 
 

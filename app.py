@@ -273,6 +273,78 @@ def apply_pending_custom_prices(df):
 loading_happened = handle_file_loading()
 
 # -------------------------------
+# Price/POA Helper Functions
+# -------------------------------
+def is_poa_value(value):
+    """Check if a value represents POA (Price on Application)"""
+    if pd.isna(value):
+        return False
+    return str(value).upper().strip() in ['POA', 'PRICE ON APPLICATION', 'CONTACT FOR PRICE']
+
+def get_numeric_price(value):
+    """Convert price value to numeric, return None if POA"""
+    if is_poa_value(value):
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+def format_price_display(value):
+    """Format price for display - handles both numeric and POA values"""
+    if is_poa_value(value):
+        return "POA"
+    numeric_value = get_numeric_price(value)
+    if numeric_value is not None:
+        return f"£{numeric_value:.2f}"
+    return "POA"
+
+def format_price_for_export(value):
+    """Format price for export - numeric only, handles POA values"""
+    if is_poa_value(value):
+        return "POA"
+    numeric_value = get_numeric_price(value)
+    if numeric_value is not None:
+        return f"{numeric_value:.2f}"
+    return "POA"
+
+def format_custom_price_for_export(value):
+    """Format custom price for export - handles None, POA, and numeric values"""
+    if pd.isna(value) or is_poa_value(value) or value == "POA" or value is None:
+        return "POA"
+    try:
+        if str(value).replace('.','').replace('-','').isdigit():
+            return f"{float(value):.2f}"
+        else:
+            return str(value)
+    except (ValueError, TypeError):
+        return "POA"
+
+def format_discount_for_export(value):
+    """Format discount percentage for export - handles POA and numeric values"""
+    if pd.isna(value) or value == "POA" or is_poa_value(value) or value is None:
+        return "POA"
+    try:
+        if str(value).replace('.','').replace('-','').isdigit():
+            return f"{float(value):.2f}%"
+        else:
+            return str(value)
+    except (ValueError, TypeError):
+        return "POA"
+
+def format_custom_price_for_display(value):
+    """Format custom price for display - includes £ symbol"""
+    if pd.isna(value) or is_poa_value(value) or value == "POA" or value is None:
+        return "POA"
+    try:
+        if str(value).replace('.','').replace('-','').isdigit():
+            return f"£{float(value):.2f}"
+        else:
+            return str(value)
+    except (ValueError, TypeError):
+        return "POA"
+
+# -------------------------------
 # Syrinx Import Processing Functions
 # -------------------------------
 
@@ -1751,32 +1823,8 @@ if df is not None and header_pdf_file:
 
 
     # -------------------------------
-    # Helper Functions
+    # Session-Dependent Helper Functions
     # -------------------------------
-    def is_poa_value(value):
-        """Check if a value represents POA (Price on Application)"""
-        if pd.isna(value):
-            return False
-        return str(value).upper().strip() in ['POA', 'PRICE ON APPLICATION', 'CONTACT FOR PRICE']
-    
-    def get_numeric_price(value):
-        """Convert price value to numeric, return None if POA"""
-        if is_poa_value(value):
-            return None
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            return None
-    
-    def format_price_display(value):
-        """Format price for display - handles both numeric and POA values"""
-        if is_poa_value(value):
-            return "POA"
-        numeric_value = get_numeric_price(value)
-        if numeric_value is not None:
-            return f"£{numeric_value:.2f}"
-        return "POA"
-    
     def get_discounted_price(row):
         """Calculate discounted price, handling POA values"""
         key = f"{row['GroupName']}_{row['Sub Section']}_discount"
@@ -1810,52 +1858,6 @@ if df is not None and header_pdf_file:
             return 0
         
         return ((orig_numeric - custom_numeric) / orig_numeric) * 100
-
-    # Standardized formatting functions for consistent data export
-    def format_price_for_export(value):
-        """Format price for export - numeric only, handles POA values"""
-        if is_poa_value(value):
-            return "POA"
-        numeric_value = get_numeric_price(value)
-        if numeric_value is not None:
-            return f"{numeric_value:.2f}"
-        return "POA"
-    
-    def format_custom_price_for_export(value):
-        """Format custom price for export - handles None, POA, and numeric values"""
-        if pd.isna(value) or is_poa_value(value) or value == "POA" or value is None:
-            return "POA"
-        try:
-            if str(value).replace('.','').replace('-','').isdigit():
-                return f"{float(value):.2f}"
-            else:
-                return str(value)
-        except (ValueError, TypeError):
-            return "POA"
-    
-    def format_discount_for_export(value):
-        """Format discount percentage for export - handles POA and numeric values"""
-        if pd.isna(value) or value == "POA" or is_poa_value(value) or value is None:
-            return "POA"
-        try:
-            if str(value).replace('.','').replace('-','').isdigit():
-                return f"{float(value):.2f}%"
-            else:
-                return str(value)
-        except (ValueError, TypeError):
-            return "POA"
-    
-    def format_custom_price_for_display(value):
-        """Format custom price for display - includes £ symbol"""
-        if pd.isna(value) or is_poa_value(value) or value == "POA" or value is None:
-            return "POA"
-        try:
-            if str(value).replace('.','').replace('-','').isdigit():
-                return f"£{float(value):.2f}"
-            else:
-                return str(value)
-        except (ValueError, TypeError):
-            return "POA"
 
     # -------------------------------
     # Adjust Prices by Group and Sub Section

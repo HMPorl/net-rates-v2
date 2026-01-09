@@ -844,7 +844,8 @@ def generate_customer_pdf(df, customer_name, header_pdf_file, include_custom_tab
 
         # Custom Price Products Table at the Top
         if include_custom_table:
-            custom_price_rows = []
+            # Collect custom price items with their subsection info
+            custom_price_items = []
             for idx, row in df.iterrows():
                 price_key = f"price_{idx}"
                 user_input = str(st.session_state.get(price_key, "")).strip()
@@ -852,30 +853,68 @@ def generate_customer_pdf(df, customer_name, header_pdf_file, include_custom_tab
                     if not is_poa_value(user_input):
                         try:
                             entered_price = float(user_input)
-                            custom_price_rows.append([
-                                row["ItemCategory"],
-                                Paragraph(row["EquipmentName"], styles['BodyText']),
-                                f"£{entered_price:.2f}"
-                            ])
+                            custom_price_items.append({
+                                'subsection': row["Sub Section"],
+                                'category': row["ItemCategory"],
+                                'equipment': row["EquipmentName"],
+                                'price': entered_price
+                            })
                         except ValueError:
                             continue
 
-            if custom_price_rows:
+            if custom_price_items:
                 customer_title = customer_name if customer_name else "Customer"
                 elements.append(Paragraph(f"Net Rates for {customer_title}", styles['Title']))
                 elements.append(Spacer(1, 12))
                 elements.append(Paragraph("Special Rates", styles['Heading2']))
                 elements.append(Spacer(1, 6))
+                
+                # Build table with subsection headers
                 table_data = [["Category", "Equipment", "Special (£)"]]
-                table_data.extend(custom_price_rows)
+                subsection_header_rows = []  # Track which rows are subsection headers
+                
+                # Group by subsection and add headers
+                from itertools import groupby
+                # Sort by subsection first to ensure proper grouping
+                sorted_items = sorted(custom_price_items, key=lambda x: str(x['subsection']))
+                
+                current_row = 1  # Start after header row
+                for subsection, items in groupby(sorted_items, key=lambda x: x['subsection']):
+                    items_list = list(items)
+                    # Add subsection header row (spans all columns visually)
+                    subsection_title = str(subsection) if subsection and str(subsection) != "nan" else "General"
+                    table_data.append(['', Paragraph(f"<b>{subsection_title}</b>", styles['BodyText']), ''])
+                    subsection_header_rows.append(current_row)
+                    current_row += 1
+                    
+                    # Add items for this subsection
+                    for item in items_list:
+                        table_data.append([
+                            item['category'],
+                            Paragraph(item['equipment'], styles['BodyText']),
+                            f"£{item['price']:.2f}"
+                        ])
+                        current_row += 1
+                
+                # Build table styles
                 row_styles = [
                     ('BACKGROUND', (0, 0), (-1, 0), '#FFD51D'),  # Yellow header
-                    ('BACKGROUND', (0, 1), (-1, -1), '#FFF2B8'),  # Light yellow background for data rows
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
                     ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ]
+                
+                # Style subsection header rows (light blue background)
+                for row_num in subsection_header_rows:
+                    row_styles.append(('BACKGROUND', (0, row_num), (-1, row_num), '#e6eef7'))
+                    row_styles.append(('SPAN', (1, row_num), (2, row_num)))  # Span equipment and price columns
+                
+                # Style data rows (light yellow background, skip subsection headers)
+                for row_num in range(1, len(table_data)):
+                    if row_num not in subsection_header_rows:
+                        row_styles.append(('BACKGROUND', (0, row_num), (-1, row_num), '#FFF2B8'))
+                
                 table = Table(table_data, colWidths=[60, 380, 60])
                 table.setStyle(TableStyle(row_styles))
                 elements.append(table)

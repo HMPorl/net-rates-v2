@@ -224,10 +224,13 @@ def apply_pending_custom_prices(df):
     try:
         pending_prices = st.session_state['pending_custom_prices']
         
-        # Clear ALL existing custom price keys first
+        # Clear ALL existing custom price keys first (both price_ and input_ keys)
         for key in list(st.session_state.keys()):
-            if key.startswith("price_"):
+            if key.startswith("price_") or key.startswith("input_"):
                 del st.session_state[key]
+        
+        # Also clear the pending_prices dictionary used by the fragment
+        st.session_state['pending_prices'] = {}
         
         # Create a reverse lookup dictionary for O(1) performance instead of O(n²)
         item_category_to_index = {}
@@ -248,7 +251,10 @@ def apply_pending_custom_prices(df):
             if item_category in item_category_to_index and price_value:
                 idx = item_category_to_index[item_category]
                 price_key = f"price_{idx}"
+                input_key = f"input_{idx}"
                 st.session_state[price_key] = str(price_value)
+                # Also set the input widget key so the fragment displays correctly
+                st.session_state[input_key] = str(price_value)
                 prices_set += 1
         
         # Clear progress indicator and show success
@@ -1773,13 +1779,19 @@ if df is not None and header_pdf_file:
             discount_key = f"{group}_{subsection}_discount"
             st.session_state[discount_key] = global_discount_to_apply
         
-        # Clear all custom prices
+        # Clear all custom prices (both price_ and input_ keys)
         cleared_count = 0
         for idx, row in df.iterrows():
             price_key = f"price_{idx}"
+            input_key = f"input_{idx}"
             if st.session_state.get(price_key, "").strip():
                 st.session_state[price_key] = ""
                 cleared_count += 1
+            if input_key in st.session_state:
+                st.session_state[input_key] = ""
+        
+        # Clear pending prices from fragment
+        st.session_state['pending_prices'] = {}
         
         st.success(f"✅ All discounts updated to {global_discount_to_apply}% and {cleared_count} custom prices cleared")
     
@@ -1790,9 +1802,15 @@ if df is not None and header_pdf_file:
         cleared_count = 0
         for idx, row in df.iterrows():
             price_key = f"price_{idx}"
+            input_key = f"input_{idx}"
             if st.session_state.get(price_key, "").strip():
                 st.session_state[price_key] = ""
                 cleared_count += 1
+            if input_key in st.session_state:
+                st.session_state[input_key] = ""
+        
+        # Clear pending prices from fragment
+        st.session_state['pending_prices'] = {}
         
         st.success(f"✅ Cleared {cleared_count} custom prices")
 

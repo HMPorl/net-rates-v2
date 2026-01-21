@@ -2702,197 +2702,230 @@ with st.sidebar:
             help="Please enter customer name, load data, and select PDF header"
         )
 
-    # PDF Options (checkboxes to control special rates)
-    st.markdown("#### 📄 PDF Options")
-    include_custom_table_sidebar = st.checkbox(
-        "Include Special Rates?", 
-        value=st.session_state.get('include_custom_table_sidebar', st.session_state.get('include_custom_table', True)),
-        key="include_custom_table_sidebar",
-        help="Add a special rates table at the beginning of the PDF"
-    )
-    special_rates_pagebreak_sidebar = st.checkbox(
-        "Separate Special Rates?", 
-        value=st.session_state.get('special_rates_pagebreak_sidebar', st.session_state.get('special_rates_pagebreak', False)),
-        key="special_rates_pagebreak_sidebar",
-        help="Put special rates table on a separate page"
-    )
-    special_rates_spacing_sidebar = st.number_input(
-        "Extra Spacing after Special Rates", 
-        min_value=0, 
-        max_value=20, 
-        value=st.session_state.get('special_rates_spacing_sidebar', st.session_state.get('special_rates_spacing', 0)),
-        key="special_rates_spacing_sidebar",
-        help="Add blank lines between Special Rates and Main Price List to improve pagination"
-    )
-
-    # Email Section
-    st.markdown("### 📧 Email Options")
-    
-    # Show email configuration status
-    config = st.session_state.get('config', {})
-    smtp_config = load_config().get('smtp', {})
-    smtp_settings = config.get("smtp_settings", {})
-    saved_sendgrid_key = smtp_settings.get("sendgrid_api_key", "")
-    
-    # Email recipient selection
-    email_options = {
-        "Authorise": "netratesauth@thehireman.co.uk",
-        "Accounts": "netrates@thehireman.co.uk",
-        "CRM": "netratescrm@thehireman.co.uk",
-        "Custom Email": "custom"
-    }
-    
-    email_choice = st.selectbox(
-        "Send To:",
-        list(email_options.keys()),
-        help="Select recipient or choose Custom Email to enter your own"
-    )
-    
-    # Handle custom email input
-    if email_choice == "Custom Email":
-        recipient_email = st.text_input(
-            "Enter Email Address:",
-            placeholder="example@company.com",
-            help="Enter the recipient's email address"
+    # PDF Options (checkboxes to control special rates) - wrapped in fragment to prevent full rerun
+    @st.fragment
+    def pdf_options_fragment():
+        st.markdown("#### 📄 PDF Options")
+        st.checkbox(
+            "Include Special Rates?", 
+            value=st.session_state.get('include_custom_table_sidebar', True),
+            key="include_custom_table_sidebar",
+            help="Add a special rates table at the beginning of the PDF"
         )
-    else:
-        recipient_email = email_options[email_choice]
-        st.info(f"📧 Sending to: {recipient_email}")
+        st.checkbox(
+            "Separate Special Rates?", 
+            value=st.session_state.get('special_rates_pagebreak_sidebar', False),
+            key="special_rates_pagebreak_sidebar",
+            help="Put special rates table on a separate page"
+        )
+        st.number_input(
+            "Extra Spacing after Special Rates", 
+            min_value=0, 
+            max_value=20, 
+            value=st.session_state.get('special_rates_spacing_sidebar', 0),
+            key="special_rates_spacing_sidebar",
+            help="Add blank lines between Special Rates and Main Price List to improve pagination"
+        )
     
-    # CC field
-    cc_email = st.text_input(
-        "CC (Optional):",
-        placeholder="additional@company.com",
-        help="Add additional recipients (separate multiple emails with commas)"
-    )
-    
-    # PDF attachment checkbox
-    add_pdf_attachment = st.checkbox(
-        "📄 Add PDF", 
-        value=False,
-        help="Include PDF quote as email attachment"
-    )
-    
-    # Send email button
-    if st.button("📤 Send Email", use_container_width=True, help="Send price list via email"):
-        customer_name = st.session_state.get('customer_name', '')
-        df = st.session_state.get('df', pd.DataFrame())
-        global_discount = st.session_state.get('global_discount', 0)
+    pdf_options_fragment()
+
+    # Email Section - wrapped in fragment to prevent full rerun on input changes
+    @st.fragment
+    def email_options_fragment():
+        st.markdown("### 📧 Email Options")
         
-        if not customer_name:
-            st.error("Please enter a customer name first")
-        elif not recipient_email or (email_choice == "Custom Email" and not recipient_email.strip()):
-            st.error("Please select or enter a valid email address")
-        elif df.empty:
-            st.error("Please load data first")
+        # Initialize email settings in session state if not present
+        if 'email_choice' not in st.session_state:
+            st.session_state.email_choice = "Authorise"
+        if 'custom_recipient_email' not in st.session_state:
+            st.session_state.custom_recipient_email = ""
+        if 'cc_email' not in st.session_state:
+            st.session_state.cc_email = ""
+        if 'add_pdf_attachment' not in st.session_state:
+            st.session_state.add_pdf_attachment = False
+        
+        # Email recipient selection
+        email_options = {
+            "Authorise": "netratesauth@thehireman.co.uk",
+            "Accounts": "netrates@thehireman.co.uk",
+            "CRM": "netratescrm@thehireman.co.uk",
+            "Custom Email": "custom"
+        }
+        
+        email_choice = st.selectbox(
+            "Send To:",
+            list(email_options.keys()),
+            key="email_choice",
+            help="Select recipient or choose Custom Email to enter your own"
+        )
+        
+        # Handle custom email input
+        if email_choice == "Custom Email":
+            st.text_input(
+                "Enter Email Address:",
+                placeholder="example@company.com",
+                key="custom_recipient_email",
+                help="Enter the recipient's email address"
+            )
         else:
-            # Get configurations
-            smtp_config = load_config().get('smtp', {})
+            recipient_email = email_options[email_choice]
+            st.info(f"📧 Sending to: {recipient_email}")
+        
+        # CC field
+        st.text_input(
+            "CC (Optional):",
+            placeholder="additional@company.com",
+            key="cc_email",
+            help="Add additional recipients (separate multiple emails with commas)"
+        )
+        
+        # PDF attachment checkbox
+        st.checkbox(
+            "📄 Add PDF", 
+            value=False,
+            key="add_pdf_attachment",
+            help="Include PDF quote as email attachment"
+        )
+        
+        # Send email button
+        if st.button("📤 Send Email", use_container_width=True, help="Send price list via email"):
+            # Get values from session state
+            email_choice = st.session_state.get('email_choice', 'Authorise')
+            email_options_map = {
+                "Authorise": "netratesauth@thehireman.co.uk",
+                "Accounts": "netrates@thehireman.co.uk",
+                "CRM": "netratescrm@thehireman.co.uk",
+                "Custom Email": "custom"
+            }
             
-            # Prepare admin DataFrame with pricing (same format as main body)
-            admin_df = df[[
-                "ItemCategory", "EquipmentName", "HireRateWeekly", 
-                "CustomPrice", "DiscountPercent", "GroupName", "Sub Section"
-            ]].copy()
+            if email_choice == "Custom Email":
+                recipient_email = st.session_state.get('custom_recipient_email', '')
+            else:
+                recipient_email = email_options_map[email_choice]
             
-            # Format values for export using standardized functions
-            admin_df["HireRateWeekly"] = admin_df["HireRateWeekly"].apply(format_price_for_export)
-            admin_df["CustomPrice"] = admin_df["CustomPrice"].apply(format_custom_price_for_export)
-            admin_df["DiscountPercent"] = admin_df["DiscountPercent"].apply(format_discount_for_export)
+            cc_email = st.session_state.get('cc_email', '')
+            add_pdf_attachment = st.session_state.get('add_pdf_attachment', False)
             
-            admin_df.columns = [
-                "Item Category", "Equipment Name", "Original Price (£)", 
-                "Net Price (£)", "Discount %", "Group", "Sub Section"
-            ]
-            admin_df["Customer Name"] = customer_name
-            admin_df["Date Created"] = get_uk_time().strftime("%Y-%m-%d %H:%M")
+            customer_name = st.session_state.get('customer_name', '')
+            df = st.session_state.get('df', pd.DataFrame())
+            global_discount = st.session_state.get('global_discount', 0)
             
-            # Reorder columns for admin convenience
-            admin_df = admin_df[[
-                "Customer Name", "Date Created", "Item Category", "Equipment Name", 
-                "Original Price (£)", "Net Price (£)", "Discount %", "Group", "Sub Section"
-            ]]
-            
-            # Create transport charges DataFrame using proper UI transport types
-            transport_inputs = []
-            for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
-                charge = st.session_state.get(f"transport_{i}", default_value)
-                if charge:  # Only include if there's a value
-                    transport_inputs.append({
-                        "Delivery or Collection type": transport_type,
-                        "Charge (£)": charge
-                    })
-            transport_df = pd.DataFrame(transport_inputs)
-            
-            try:
-                with st.spinner("📧 Sending email..."):
-                    # Generate PDF attachment if requested
-                    pdf_attachment_data = None
-                    if add_pdf_attachment:
-                        with st.spinner("📄 Generating PDF..."):
-                            # Use the shared PDF generation function (single source of truth)
-                            include_custom_table = st.session_state.get('include_custom_table_sidebar', st.session_state.get('include_custom_table', True))
-                            special_rates_pagebreak = st.session_state.get('special_rates_pagebreak_sidebar', st.session_state.get('special_rates_pagebreak', False))
-                            special_rates_spacing = st.session_state.get('special_rates_spacing_sidebar', st.session_state.get('special_rates_spacing', 0))
-                            
-                            header_pdf_file = st.session_state.get('header_pdf_file', None)
-                            if header_pdf_file:
-                                pdf_attachment_data = generate_customer_pdf(
-                                    df=df,
-                                    customer_name=customer_name,
-                                    header_pdf_file=header_pdf_file,
-                                    include_custom_table=include_custom_table,
-                                    special_rates_pagebreak=special_rates_pagebreak,
-                                    special_rates_spacing=special_rates_spacing
-                                )
-                            else:
-                                st.warning("⚠️ No PDF header file selected. PDF attachment will not be included.")
-                    
-                    # Get email configuration (same as main body)
-                    config = st.session_state.get('config', {})
-                    smtp_settings = config.get("smtp_settings", {})
-                    saved_sendgrid_key = smtp_settings.get("sendgrid_api_key", "")
-                    
-                    # Try SendGrid first, then SMTP fallback
-                    if (smtp_config.get('enabled', False) and smtp_config.get('provider') == 'SendGrid') or saved_sendgrid_key or SENDGRID_API_KEY:
-                        result = send_email_via_sendgrid_api(
-                            customer_name,
-                            admin_df,
-                            transport_df,
-                            recipient_email,
-                            cc_email if cc_email and cc_email.strip() else None,
-                            global_discount,
-                            df,  # Pass original DataFrame
-                            st.session_state.get('header_pdf_choice', None),  # Get from session state
-                            pdf_attachment_data  # Add PDF attachment
-                        )
-                    else:
-                        result = send_email_with_pricelist(
-                            customer_name,
-                            admin_df,
-                            transport_df,
-                            recipient_email,
-                            smtp_config if smtp_config.get('enabled', False) else None,
-                            cc_email if cc_email and cc_email.strip() else None,
-                            global_discount,
-                            df,  # Pass original DataFrame
-                            st.session_state.get('header_pdf_choice', None),  # Get from session state
-                            pdf_attachment_data  # Add PDF attachment
-                        )
-                    
-                    if result['status'] == 'sent':
-                        st.success(f"✅ Email sent successfully to {recipient_email}!")
-                        if cc_email:
-                            st.info(f"📧 CC: {cc_email}")
-                        st.balloons()
-                    elif result['status'] == 'saved':
-                        st.success("✅ Email data prepared successfully!")
-                        st.info("💡 Check your email configuration to enable sending")
-                    else:
-                        st.error(f"❌ Email failed: {result.get('message', 'Unknown error')}")
+            if not customer_name:
+                st.error("Please enter a customer name first")
+            elif not recipient_email or (email_choice == "Custom Email" and not recipient_email.strip()):
+                st.error("Please select or enter a valid email address")
+            elif df.empty:
+                st.error("Please load data first")
+            else:
+                # Get configurations
+                smtp_config = load_config().get('smtp', {})
+                
+                # Prepare admin DataFrame with pricing (same format as main body)
+                admin_df = df[[
+                    "ItemCategory", "EquipmentName", "HireRateWeekly", 
+                    "CustomPrice", "DiscountPercent", "GroupName", "Sub Section"
+                ]].copy()
+                
+                # Format values for export using standardized functions
+                admin_df["HireRateWeekly"] = admin_df["HireRateWeekly"].apply(format_price_for_export)
+                admin_df["CustomPrice"] = admin_df["CustomPrice"].apply(format_custom_price_for_export)
+                admin_df["DiscountPercent"] = admin_df["DiscountPercent"].apply(format_discount_for_export)
+                
+                admin_df.columns = [
+                    "Item Category", "Equipment Name", "Original Price (£)", 
+                    "Net Price (£)", "Discount %", "Group", "Sub Section"
+                ]
+                admin_df["Customer Name"] = customer_name
+                admin_df["Date Created"] = get_uk_time().strftime("%Y-%m-%d %H:%M")
+                
+                # Reorder columns for admin convenience
+                admin_df = admin_df[[
+                    "Customer Name", "Date Created", "Item Category", "Equipment Name", 
+                    "Original Price (£)", "Net Price (£)", "Discount %", "Group", "Sub Section"
+                ]]
+                
+                # Create transport charges DataFrame using proper UI transport types
+                transport_inputs = []
+                for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
+                    charge = st.session_state.get(f"transport_{i}", default_value)
+                    if charge:  # Only include if there's a value
+                        transport_inputs.append({
+                            "Delivery or Collection type": transport_type,
+                            "Charge (£)": charge
+                        })
+                transport_df = pd.DataFrame(transport_inputs)
+                
+                try:
+                    with st.spinner("📧 Sending email..."):
+                        # Generate PDF attachment if requested
+                        pdf_attachment_data = None
+                        if add_pdf_attachment:
+                            with st.spinner("📄 Generating PDF..."):
+                                # Use the shared PDF generation function (single source of truth)
+                                include_custom_table = st.session_state.get('include_custom_table_sidebar', st.session_state.get('include_custom_table', True))
+                                special_rates_pagebreak = st.session_state.get('special_rates_pagebreak_sidebar', st.session_state.get('special_rates_pagebreak', False))
+                                special_rates_spacing = st.session_state.get('special_rates_spacing_sidebar', st.session_state.get('special_rates_spacing', 0))
+                                
+                                header_pdf_file = st.session_state.get('header_pdf_file', None)
+                                if header_pdf_file:
+                                    pdf_attachment_data = generate_customer_pdf(
+                                        df=df,
+                                        customer_name=customer_name,
+                                        header_pdf_file=header_pdf_file,
+                                        include_custom_table=include_custom_table,
+                                        special_rates_pagebreak=special_rates_pagebreak,
+                                        special_rates_spacing=special_rates_spacing
+                                    )
+                                else:
+                                    st.warning("⚠️ No PDF header file selected. PDF attachment will not be included.")
                         
-            except Exception as e:
-                st.error(f"❌ Email error: {str(e)}")
+                        # Get email configuration (same as main body)
+                        config = st.session_state.get('config', {})
+                        smtp_settings = config.get("smtp_settings", {})
+                        saved_sendgrid_key = smtp_settings.get("sendgrid_api_key", "")
+                        
+                        # Try SendGrid first, then SMTP fallback
+                        if (smtp_config.get('enabled', False) and smtp_config.get('provider') == 'SendGrid') or saved_sendgrid_key or SENDGRID_API_KEY:
+                            result = send_email_via_sendgrid_api(
+                                customer_name,
+                                admin_df,
+                                transport_df,
+                                recipient_email,
+                                cc_email if cc_email and cc_email.strip() else None,
+                                global_discount,
+                                df,  # Pass original DataFrame
+                                st.session_state.get('header_pdf_choice', None),  # Get from session state
+                                pdf_attachment_data  # Add PDF attachment
+                            )
+                        else:
+                            result = send_email_with_pricelist(
+                                customer_name,
+                                admin_df,
+                                transport_df,
+                                recipient_email,
+                                smtp_config if smtp_config.get('enabled', False) else None,
+                                cc_email if cc_email and cc_email.strip() else None,
+                                global_discount,
+                                df,  # Pass original DataFrame
+                                st.session_state.get('header_pdf_choice', None),  # Get from session state
+                                pdf_attachment_data  # Add PDF attachment
+                            )
+                        
+                        if result['status'] == 'sent':
+                            st.success(f"✅ Email sent successfully to {recipient_email}!")
+                            if cc_email:
+                                st.info(f"📧 CC: {cc_email}")
+                            st.balloons()
+                        elif result['status'] == 'saved':
+                            st.success("✅ Email data prepared successfully!")
+                            st.info("💡 Check your email configuration to enable sending")
+                        else:
+                            st.error(f"❌ Email failed: {result.get('message', 'Unknown error')}")
+                            
+                except Exception as e:
+                    st.error(f"❌ Email error: {str(e)}")
+    
+    email_options_fragment()
     
     st.markdown("---")
     

@@ -1911,37 +1911,8 @@ if df is not None and header_pdf_file:
     if 'pending_prices' not in st.session_state:
         st.session_state.pending_prices = {}
     
-    # Check for pending changes
-    def count_pending_changes():
-        count = 0
-        for key, pending_val in st.session_state.pending_prices.items():
-            saved_val = st.session_state.get(key, "")
-            if pending_val != saved_val:
-                count += 1
-        return count
-    
-    # Apply All Changes button and controls row
-    col_apply, col_discard, col_expand, col_collapse, col_legend = st.columns([2, 2, 2, 2, 2])
-    
-    with col_apply:
-        pending_count = count_pending_changes()
-        apply_disabled = pending_count == 0
-        if st.button(f"✅ Apply All Changes ({pending_count})", type="primary", disabled=apply_disabled, use_container_width=True):
-            # Copy all pending values to session state
-            applied_count = 0
-            for key, value in st.session_state.pending_prices.items():
-                if st.session_state.get(key, "") != value:
-                    st.session_state[key] = value
-                    applied_count += 1
-            st.session_state.pending_prices = {}  # Clear pending
-            st.success(f"✅ Applied {applied_count} price change(s)")
-            st.rerun()
-    
-    with col_discard:
-        if st.button("🗑️ Discard Changes", disabled=apply_disabled, use_container_width=True):
-            st.session_state.pending_prices = {}
-            st.info("Changes discarded")
-            st.rerun()
+    # Controls row (expand/collapse and legend - these don't need live updates)
+    col_expand, col_collapse, col_legend, col_spacer = st.columns([2, 2, 2, 4])
     
     with col_expand:
         if st.button("🔓 Expand All", use_container_width=True):
@@ -1978,6 +1949,15 @@ if df is not None and header_pdf_file:
     # Define the pricing fragment - only this section reruns on input changes
     @st.fragment
     def pricing_fragment():
+        # Count pending changes (inside fragment so it updates with each keystroke)
+        def count_pending_changes():
+            count = 0
+            for key, pending_val in st.session_state.pending_prices.items():
+                saved_val = st.session_state.get(key, "")
+                if pending_val != saved_val:
+                    count += 1
+            return count
+        
         # Group the data for better organization
         grouped_df = df.groupby(["GroupName", "Sub Section"])
         
@@ -2116,6 +2096,31 @@ if df is not None and header_pdf_file:
                         else:
                             df.at[idx, "CustomPrice"] = discounted_price
                             df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], discounted_price)
+        
+        # Apply/Discard buttons at the end of the fragment (updates with each keystroke)
+        st.markdown("---")
+        pending_count = count_pending_changes()
+        apply_disabled = pending_count == 0
+        
+        col_apply, col_discard, col_spacer = st.columns([2, 2, 6])
+        
+        with col_apply:
+            if st.button(f"✅ Apply All Changes ({pending_count})", type="primary", disabled=apply_disabled, use_container_width=True):
+                # Copy all pending values to session state
+                applied_count = 0
+                for key, value in st.session_state.pending_prices.items():
+                    if st.session_state.get(key, "") != value:
+                        st.session_state[key] = value
+                        applied_count += 1
+                st.session_state.pending_prices = {}  # Clear pending
+                st.success(f"✅ Applied {applied_count} price change(s)")
+                st.rerun()
+        
+        with col_discard:
+            if st.button("🗑️ Discard Changes", disabled=apply_disabled, use_container_width=True):
+                st.session_state.pending_prices = {}
+                st.info("Changes discarded")
+                st.rerun()
     
     # Run the pricing fragment
     pricing_fragment()

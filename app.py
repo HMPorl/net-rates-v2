@@ -1907,22 +1907,63 @@ if df is not None and header_pdf_file:
     # -------------------------------
     st.markdown("### Adjust Prices by Group and Sub Section")
     
-    # Add option to keep sections expanded while editing
-    col_btn1, col_btn2, col_btn3 = st.columns(3)
-    with col_btn1:
-        if st.button("🔓 Force Expand All"):
+    # Initialize pending prices storage for live preview
+    if 'pending_prices' not in st.session_state:
+        st.session_state.pending_prices = {}
+    
+    # Check for pending changes
+    def count_pending_changes():
+        count = 0
+        for key, pending_val in st.session_state.pending_prices.items():
+            saved_val = st.session_state.get(key, "")
+            if pending_val != saved_val:
+                count += 1
+        return count
+    
+    # Apply All Changes button and controls row
+    col_apply, col_discard, col_expand, col_collapse, col_legend = st.columns([2, 2, 2, 2, 2])
+    
+    with col_apply:
+        pending_count = count_pending_changes()
+        apply_disabled = pending_count == 0
+        if st.button(f"✅ Apply All Changes ({pending_count})", type="primary", disabled=apply_disabled, use_container_width=True):
+            # Copy all pending values to session state
+            applied_count = 0
+            for key, value in st.session_state.pending_prices.items():
+                if st.session_state.get(key, "") != value:
+                    st.session_state[key] = value
+                    applied_count += 1
+            st.session_state.pending_prices = {}  # Clear pending
+            st.success(f"✅ Applied {applied_count} price change(s)")
+            st.rerun()
+    
+    with col_discard:
+        if st.button("🗑️ Discard Changes", disabled=apply_disabled, use_container_width=True):
+            st.session_state.pending_prices = {}
+            st.info("Changes discarded")
+            st.rerun()
+    
+    with col_expand:
+        if st.button("🔓 Expand All", use_container_width=True):
             st.session_state.keep_expanded = True
-    with col_btn2:
-        if st.button("🔒 Auto-Expand Only"):
+            st.rerun()
+    
+    with col_collapse:
+        if st.button("🔒 Collapse", use_container_width=True):
             st.session_state.keep_expanded = False
-    with col_btn3:
-        # Add legend for visual indicators
+            st.rerun()
+    
+    with col_legend:
         with st.popover("📖 Legend & Tips"):
             st.markdown("**🎯 Custom Price:** You've entered a specific price")
             st.markdown("**📊 Calculated Price:** Based on group discount")
             st.markdown("**⚠️ Warning:** Exceeds max discount or invalid input")
+            st.markdown("**✏️ Pending:** Change not yet applied")
             st.markdown("---")
-            st.markdown("**💡 Tip:** Sections with custom prices auto-expand and stay open!")
+            st.markdown("**💡 Workflow Tips:**")
+            st.markdown("1. Open sections and enter your prices")
+            st.markdown("2. Live preview shows discount % as you type")
+            st.markdown("3. Click **Apply All Changes** when ready")
     
     # Check if we should keep sections expanded
     keep_expanded = st.session_state.get("keep_expanded", False)
@@ -1934,99 +1975,150 @@ if df is not None and header_pdf_file:
         if price_key not in st.session_state:
             st.session_state[price_key] = ""
     
-    # Group the data for better organization
-    grouped_df = df.groupby(["GroupName", "Sub Section"])
-    
-    for (group, subsection), group_df in grouped_df:
-        # Check if this group has any custom prices
-        has_custom_in_group = any(
-            st.session_state.get(f"price_{idx}", "").strip() 
-            for idx in group_df.index
-        )
+    # Define the pricing fragment - only this section reruns on input changes
+    @st.fragment
+    def pricing_fragment():
+        # Group the data for better organization
+        grouped_df = df.groupby(["GroupName", "Sub Section"])
         
-        # Add target emoji to header if group contains custom prices
-        header_text = f"{group} - {subsection}"
-        if has_custom_in_group:
-            header_text += " 🎯"
-        
-        # Auto-expand sections that have custom prices OR if global expand is enabled
-        should_expand = keep_expanded or has_custom_in_group
-        
-        with st.expander(header_text, expanded=should_expand):
-            for idx, row in group_df.iterrows():
-                discounted_price = get_discounted_price(row)
-                price_key = f"price_{idx}"
+        for (group, subsection), group_df in grouped_df:
+            # Check if this group has any custom prices (saved or pending)
+            has_custom_in_group = any(
+                st.session_state.pending_prices.get(f"price_{idx}", st.session_state.get(f"price_{idx}", "")).strip() 
+                for idx in group_df.index
+            )
+            
+            # Check if this group has pending changes
+            has_pending_in_group = any(
+                st.session_state.pending_prices.get(f"price_{idx}", "") != st.session_state.get(f"price_{idx}", "")
+                for idx in group_df.index
+                if f"price_{idx}" in st.session_state.pending_prices
+            )
+            
+            # Add emoji to header if group contains custom prices or pending changes
+            header_text = f"{group} - {subsection}"
+            if has_pending_in_group:
+                header_text += " ✏️"
+            elif has_custom_in_group:
+                header_text += " 🎯"
+            
+            # Auto-expand sections that have custom prices OR if global expand is enabled
+            should_expand = keep_expanded or has_custom_in_group
+            
+            with st.expander(header_text, expanded=should_expand):
+                for idx, row in group_df.iterrows():
+                    discounted_price = get_discounted_price(row)
+                    price_key = f"price_{idx}"
+                    
+                    # Get the value to display: pending > saved > empty
+                    if price_key in st.session_state.pending_prices:
+                        current_value = st.session_state.pending_prices[price_key]
+                    else:
+                        current_value = st.session_state.get(price_key, "")
 
-                col1, col2, col3, col4, col5 = st.columns([2, 4, 2, 3, 3])
-                with col1:
-                    st.write(row["ItemCategory"])
-                with col2:
-                    st.write(row["EquipmentName"])
-                with col3:
-                    # Display calculated price or POA
-                    if discounted_price == "POA":
-                        st.write("POA")
-                    else:
-                        st.write(f"£{discounted_price:.2f}")
-                with col4:
-                    # Check if user has a custom price
-                    user_input = st.session_state.get(price_key, "").strip()
-                    has_custom_price = bool(user_input)
-                    
-                    # Input field with status-aware placeholder and label
-                    if has_custom_price:
-                        placeholder_text = "Custom price active"
-                        help_text = "🎯 Custom price set - overrides group discount"
-                    else:
-                        placeholder_text = "Enter Special Rate or POA"
-                        help_text = "💡 Leave empty to use group discount calculation"
-                    
-                    st.text_input("", key=price_key, label_visibility="collapsed", 
-                                placeholder=placeholder_text, help=help_text)
-                with col5:
-                    # Handle custom price input (numeric or POA)
-                    user_input = st.session_state.get(price_key, "").strip()
-                    
-                    if user_input:
-                        # User entered something
-                        if is_poa_value(user_input):
-                            # User entered POA
-                            custom_price = "POA"
-                            discount_percent = "POA"
-                            st.markdown("**POA**")
+                    col1, col2, col3, col4, col5 = st.columns([2, 4, 2, 3, 3])
+                    with col1:
+                        st.write(row["ItemCategory"])
+                    with col2:
+                        st.write(row["EquipmentName"])
+                    with col3:
+                        # Display calculated price or POA
+                        if discounted_price == "POA":
+                            st.write("POA")
                         else:
-                            # User entered a number
-                            try:
-                                custom_price = float(user_input)
-                                discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
-                                
-                                if discount_percent == "POA":
-                                    st.markdown("**POA** 🎯")
-                                else:
-                                    # Check max discount only for numeric values
-                                    orig_numeric = get_numeric_price(row["HireRateWeekly"])
-                                    if orig_numeric and discount_percent > row["Max Discount"]:
-                                        st.markdown(f"**{discount_percent:.2f}%** 🎯⚠️")
-                                    else:
-                                        st.markdown(f"**{discount_percent:.2f}%** 🎯")
-                            except ValueError:
-                                # Invalid input - treat as POA
+                            st.write(f"£{discounted_price:.2f}")
+                    with col4:
+                        # Check if user has a custom price
+                        has_custom_price = bool(current_value.strip()) if current_value else False
+                        
+                        # Input field with status-aware placeholder and label
+                        if has_custom_price:
+                            placeholder_text = "Custom price active"
+                            help_text = "🎯 Custom price set - overrides group discount"
+                        else:
+                            placeholder_text = "Enter Special Rate or POA"
+                            help_text = "💡 Leave empty to use group discount calculation"
+                        
+                        # Regular text input - fragment ensures fast rerun
+                        new_value = st.text_input(
+                            "", 
+                            value=current_value,
+                            key=f"input_{idx}", 
+                            label_visibility="collapsed", 
+                            placeholder=placeholder_text, 
+                            help=help_text
+                        )
+                        
+                        # Store in pending if different from saved
+                        saved_value = st.session_state.get(price_key, "")
+                        if new_value != saved_value:
+                            st.session_state.pending_prices[price_key] = new_value
+                        elif price_key in st.session_state.pending_prices:
+                            # Remove from pending if reverted to saved value
+                            del st.session_state.pending_prices[price_key]
+                    
+                    with col5:
+                        # Live preview: use pending value if exists, otherwise saved
+                        preview_value = st.session_state.pending_prices.get(price_key, saved_value)
+                        user_input = preview_value.strip() if preview_value else ""
+                        
+                        # Check if this is a pending change
+                        is_pending = price_key in st.session_state.pending_prices and st.session_state.pending_prices[price_key] != saved_value
+                        pending_indicator = " ✏️" if is_pending else ""
+                        
+                        if user_input:
+                            # User entered something
+                            if is_poa_value(user_input):
                                 custom_price = "POA"
                                 discount_percent = "POA"
-                                st.markdown("**POA** 🎯⚠️")
-                    else:
-                        # No user input - use calculated price
-                        custom_price = discounted_price
-                        discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
-                        
-                        if discount_percent == "POA":
-                            st.markdown("**POA** 📊")
+                                st.markdown(f"**POA** 🎯{pending_indicator}")
+                            else:
+                                try:
+                                    custom_price = float(user_input)
+                                    discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
+                                    
+                                    if discount_percent == "POA":
+                                        st.markdown(f"**POA** 🎯{pending_indicator}")
+                                    else:
+                                        orig_numeric = get_numeric_price(row["HireRateWeekly"])
+                                        if orig_numeric and discount_percent > row["Max Discount"]:
+                                            st.markdown(f"**{discount_percent:.2f}%** 🎯⚠️{pending_indicator}")
+                                        else:
+                                            st.markdown(f"**{discount_percent:.2f}%** 🎯{pending_indicator}")
+                                except ValueError:
+                                    custom_price = "POA"
+                                    discount_percent = "POA"
+                                    st.markdown(f"**POA** 🎯⚠️{pending_indicator}")
                         else:
-                            st.markdown(f"**{discount_percent:.2f}%** 📊")
+                            # No user input - use calculated price
+                            custom_price = discounted_price
+                            discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
+                            
+                            if discount_percent == "POA":
+                                st.markdown("**POA** 📊")
+                            else:
+                                st.markdown(f"**{discount_percent:.2f}%** 📊")
 
-                # Store the final values
-                df.at[idx, "CustomPrice"] = custom_price
-                df.at[idx, "DiscountPercent"] = discount_percent
+                        # Store the final values for export (use SAVED values, not pending)
+                        # This ensures exports only include applied changes
+                        saved_input = saved_value.strip() if saved_value else ""
+                        if saved_input:
+                            if is_poa_value(saved_input):
+                                df.at[idx, "CustomPrice"] = "POA"
+                                df.at[idx, "DiscountPercent"] = "POA"
+                            else:
+                                try:
+                                    df.at[idx, "CustomPrice"] = float(saved_input)
+                                    df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], float(saved_input))
+                                except ValueError:
+                                    df.at[idx, "CustomPrice"] = "POA"
+                                    df.at[idx, "DiscountPercent"] = "POA"
+                        else:
+                            df.at[idx, "CustomPrice"] = discounted_price
+                            df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], discounted_price)
+    
+    # Run the pricing fragment
+    pricing_fragment()
 
     # -------------------------------
     # Final Price List Display

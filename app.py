@@ -1096,20 +1096,26 @@ def generate_customer_pdf(df, customer_name, header_pdf_file, include_custom_tab
 
         logo_file = st.session_state.get('logo_file', None)
         if logo_file:
-            logo_image = Image.open(logo_file)
-            logo_bytes = io.BytesIO()
-            logo_image.save(logo_bytes, format="PNG")
-            logo_bytes.seek(0)
-            logo_width = 100
-            logo_height = logo_image.height * (logo_width / logo_image.width)
-            logo_x = (page_width - logo_width) / 2
-            bespoke_email = st.session_state.get('bespoke_email', '')
-            if bespoke_email and bespoke_email.strip():
-                logo_y = text_y + font_size + 13 + 20
-            else:
-                logo_y = text_y + font_size + 20
-            rect_logo = fitz.Rect(logo_x, logo_y, logo_x + logo_width, logo_y + logo_height)
-            page1.insert_image(rect_logo, stream=logo_bytes.read())
+            try:
+                # Reset file pointer in case it was read before
+                logo_file.seek(0)
+                logo_image = Image.open(logo_file)
+                logo_bytes = io.BytesIO()
+                logo_image.save(logo_bytes, format="PNG")
+                logo_bytes.seek(0)
+                logo_width = 100
+                logo_height = logo_image.height * (logo_width / logo_image.width)
+                logo_x = (page_width - logo_width) / 2
+                bespoke_email = st.session_state.get('bespoke_email', '')
+                if bespoke_email and bespoke_email.strip():
+                    logo_y = text_y + font_size + 13 + 20
+                else:
+                    logo_y = text_y + font_size + 20
+                rect_logo = fitz.Rect(logo_x, logo_y, logo_x + logo_width, logo_y + logo_height)
+                page1.insert_image(rect_logo, stream=logo_bytes.read())
+            except Exception as e:
+                # Logo failed to load, continue without it
+                pass
 
         # Draw Transport Charges table on page 3
         page3 = header_pdf[2]
@@ -1563,6 +1569,14 @@ if "bespoke_email" not in st.session_state:
 
 bespoke_email = st.text_input("⭐ Bespoke email address (optional)", key="bespoke_email")
 logo_file = st.file_uploader("⭐Upload Company Logo", type=["png", "jpg", "jpeg"])
+
+# Store logo file in session state so it's accessible in PDF generation
+if logo_file is not None:
+    st.session_state['logo_file'] = logo_file
+elif 'logo_file' in st.session_state and logo_file is None:
+    # Keep existing logo if user hasn't cleared it
+    # Only clear if they explicitly removed it (file uploader returns None when cleared)
+    pass
 
 # Toggle for admin options (hide by default)
 show_admin_uploads = st.toggle("Show Admin Upload Options", value=False)

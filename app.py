@@ -1731,9 +1731,14 @@ elif header_pdf_choice != "(Select Sales Person)":
 
 if df is not None and header_pdf_file:
     required_columns = {"ItemCategory", "EquipmentName", "HireRateWeekly", "GroupName", "Sub Section", "Max Discount", "Include", "Order"}
+    optional_columns = {"ExcludeFromGlobalDiscount"}  # Optional columns for advanced features
     if not required_columns.issubset(df.columns):
         st.error(f"Excel file must contain the following columns: {', '.join(required_columns)}")
         st.stop()
+    
+    # Add ExcludeFromGlobalDiscount column with default False if not present
+    if "ExcludeFromGlobalDiscount" not in df.columns:
+        df["ExcludeFromGlobalDiscount"] = False
 
     # -------------------------------
     # Filter and Sort Data
@@ -1759,27 +1764,53 @@ if df is not None and header_pdf_file:
     # Process bulk discount updates BEFORE creating widgets
     # -------------------------------
     
+    # Build set of excluded group/subsection combinations (where any item has ExcludeFromGlobalDiscount=True)
+    excluded_groups = set()
+    for (group, subsection), group_df in grouped_df:
+        if group_df["ExcludeFromGlobalDiscount"].any():
+            excluded_groups.add((group, subsection))
+    
     # Process "Set All Groups to Global Discount" action
     if st.session_state.get('set_all_groups_to_global', False):
         st.session_state['set_all_groups_to_global'] = False  # Clear the trigger
         
         global_discount_to_apply = st.session_state.get('global_discount', 0.0)
+        applied_count = 0
+        skipped_count = 0
         for group, subsection in group_keys:
             discount_key = f"{group}_{subsection}_discount"
-            st.session_state[discount_key] = global_discount_to_apply
+            if (group, subsection) in excluded_groups:
+                st.session_state[discount_key] = 0.0  # Keep excluded groups at 0%
+                skipped_count += 1
+            else:
+                st.session_state[discount_key] = global_discount_to_apply
+                applied_count += 1
         
-        st.success(f"✅ All group discounts set to {global_discount_to_apply}%")
+        if skipped_count > 0:
+            st.success(f"✅ {applied_count} groups set to {global_discount_to_apply}% ({skipped_count} excluded groups kept at 0%)")
+        else:
+            st.success(f"✅ All group discounts set to {global_discount_to_apply}%")
     
     # Process "Update Group Discounts Only" action
     if st.session_state.get('update_group_discounts_only', False):
         st.session_state['update_group_discounts_only'] = False  # Clear the trigger
         
         global_discount_to_apply = st.session_state.get('global_discount', 0.0)
+        applied_count = 0
+        skipped_count = 0
         for group, subsection in group_keys:
             discount_key = f"{group}_{subsection}_discount"
-            st.session_state[discount_key] = global_discount_to_apply
+            if (group, subsection) in excluded_groups:
+                st.session_state[discount_key] = 0.0  # Keep excluded groups at 0%
+                skipped_count += 1
+            else:
+                st.session_state[discount_key] = global_discount_to_apply
+                applied_count += 1
         
-        st.success(f"✅ Group discounts updated to {global_discount_to_apply}% (custom prices preserved)")
+        if skipped_count > 0:
+            st.success(f"✅ {applied_count} groups updated to {global_discount_to_apply}% ({skipped_count} excluded groups kept at 0%, custom prices preserved)")
+        else:
+            st.success(f"✅ Group discounts updated to {global_discount_to_apply}% (custom prices preserved)")
     
     # Process "Update All & Clear Custom Prices" action
     if st.session_state.get('update_all_and_clear_custom', False):
@@ -1788,10 +1819,17 @@ if df is not None and header_pdf_file:
         global_discount_to_apply = st.session_state.get('global_discount', 0.0)
         group_keys = list(df.groupby(["GroupName", "Sub Section"]).groups.keys())
         
-        # Update group discounts
+        # Update group discounts (respecting exclusions)
+        applied_count = 0
+        skipped_count = 0
         for group, subsection in group_keys:
             discount_key = f"{group}_{subsection}_discount"
-            st.session_state[discount_key] = global_discount_to_apply
+            if (group, subsection) in excluded_groups:
+                st.session_state[discount_key] = 0.0  # Keep excluded groups at 0%
+                skipped_count += 1
+            else:
+                st.session_state[discount_key] = global_discount_to_apply
+                applied_count += 1
         
         # Clear all custom prices (both price_ and input_ keys)
         cleared_count = 0
@@ -1807,7 +1845,10 @@ if df is not None and header_pdf_file:
         # Clear pending prices from fragment
         st.session_state['pending_prices'] = {}
         
-        st.success(f"✅ All discounts updated to {global_discount_to_apply}% and {cleared_count} custom prices cleared")
+        if skipped_count > 0:
+            st.success(f"✅ {applied_count} groups updated to {global_discount_to_apply}% ({skipped_count} excluded groups kept at 0%) and {cleared_count} custom prices cleared")
+        else:
+            st.success(f"✅ All discounts updated to {global_discount_to_apply}% and {cleared_count} custom prices cleared")
     
     # Process "Clear All Custom Prices" action
     if st.session_state.get('clear_all_custom_prices', False):
@@ -1877,6 +1918,8 @@ if df is not None and header_pdf_file:
     # Group-Level Discounts in expandable section (rarely used)
     with st.expander("🎛️ Group-Level Discounts (Advanced)", expanded=False):
         st.markdown("**Configure individual discount rates for each equipment group:**")
+        if excluded_groups:
+            st.info(f"🔒 {len(excluded_groups)} group(s) excluded from global discount (marked in Excel). You can still set custom prices for individual items.")
         
         group_discount_keys = {}
 
@@ -1885,15 +1928,21 @@ if df is not None and header_pdf_file:
             col = cols[i % 3]  # Fill down each column
             with col:
                 discount_key = f"{group}_{subsection}_discount"
+                is_excluded = (group, subsection) in excluded_groups
                 # Initialize session state if key doesn't exist (avoids widget/session state conflict)
                 if discount_key not in st.session_state:
-                    st.session_state[discount_key] = global_discount
+                    # Excluded groups default to 0%, others to global discount
+                    st.session_state[discount_key] = 0.0 if is_excluded else global_discount
+                
+                # Add lock icon to label for excluded groups
+                label = f"🔒 {group} - {subsection} (%)" if is_excluded else f"{group} - {subsection} (%)"
                 st.number_input(
-                    f"{group} - {subsection} (%)",
+                    label,
                     min_value=0.0,
                     max_value=100.0,
                     step=0.01,
-                    key=discount_key
+                    key=discount_key,
+                    help="Excluded from global discount updates (set in Excel)" if is_excluded else None
                 )
 
 

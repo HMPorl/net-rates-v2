@@ -110,7 +110,7 @@ def save_config(config):
 # Streamlit Page Configuration
 # -------------------------------
 st.set_page_config(
-    page_title="Net Rates Calculator V2",
+    page_title="Net Rates Calculator V2 with 2026 pricing",
     page_icon="🚀",
     layout="wide"
 )
@@ -680,7 +680,7 @@ if not st.session_state.authenticated:
 # -------------------------------
 # Main Application Header
 # -------------------------------
-st.markdown("# 🚀 Net Rates Calculator V2")
+st.markdown("# 🚀 Net Rates Calculator V2 with 2026 pricing")
 st.markdown("*Production Version - Enhanced Features*")
 st.markdown("---")
 

@@ -2717,6 +2717,29 @@ with st.sidebar:
             help="Please enter a customer name and ensure data is loaded"
         )
     
+    # PDF Options (checkboxes to control special rates) - MUST be before PDF generation
+    st.markdown("#### 📄 PDF Options")
+    st.checkbox(
+        "Include Special Rates?", 
+        value=st.session_state.get('include_custom_table_sidebar', True),
+        key="include_custom_table_sidebar",
+        help="Add a special rates table at the beginning of the PDF"
+    )
+    st.checkbox(
+        "Separate Special Rates?", 
+        value=st.session_state.get('special_rates_pagebreak_sidebar', False),
+        key="special_rates_pagebreak_sidebar",
+        help="Put special rates table on a separate page"
+    )
+    st.number_input(
+        "Extra Spacing after Special Rates", 
+        min_value=0, 
+        max_value=20, 
+        value=st.session_state.get('special_rates_spacing_sidebar', 0),
+        key="special_rates_spacing_sidebar",
+        help="Add blank lines between Special Rates and Main Price List to improve pagination"
+    )
+    
     # PDF Download (immediate generation)
     if customer_name and not df.empty and header_pdf_file:
         # Get PDF options from session state
@@ -2764,33 +2787,6 @@ with st.sidebar:
             disabled=True,
             help="Please enter customer name, load data, and select PDF header"
         )
-
-    # PDF Options (checkboxes to control special rates) - wrapped in fragment to prevent full rerun
-    @st.fragment
-    def pdf_options_fragment():
-        st.markdown("#### 📄 PDF Options")
-        st.checkbox(
-            "Include Special Rates?", 
-            value=st.session_state.get('include_custom_table_sidebar', True),
-            key="include_custom_table_sidebar",
-            help="Add a special rates table at the beginning of the PDF"
-        )
-        st.checkbox(
-            "Separate Special Rates?", 
-            value=st.session_state.get('special_rates_pagebreak_sidebar', False),
-            key="special_rates_pagebreak_sidebar",
-            help="Put special rates table on a separate page"
-        )
-        st.number_input(
-            "Extra Spacing after Special Rates", 
-            min_value=0, 
-            max_value=20, 
-            value=st.session_state.get('special_rates_spacing_sidebar', 0),
-            key="special_rates_spacing_sidebar",
-            help="Add blank lines between Special Rates and Main Price List to improve pagination"
-        )
-    
-    pdf_options_fragment()
 
     # Email Section - wrapped in fragment to prevent full rerun on input changes
     @st.fragment

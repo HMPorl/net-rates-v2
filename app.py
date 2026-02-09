@@ -251,10 +251,7 @@ def apply_pending_custom_prices(df):
             if item_category in item_category_to_index and price_value:
                 idx = item_category_to_index[item_category]
                 price_key = f"price_{idx}"
-                input_key = f"input_{idx}"
                 st.session_state[price_key] = str(price_value)
-                # Also set the input widget key so the fragment displays correctly
-                st.session_state[input_key] = str(price_value)
                 prices_set += 1
         
         # Clear progress indicator and show success

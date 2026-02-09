@@ -406,7 +406,7 @@ def apply_syrinx_import(preview_data, global_discount):
         # Build pending prices from Syrinx data 
         matched_items = preview_data.get('matched', [])
         for item in matched_items:
-            item_category = str(item['item_category'])  # Use item_category for lookup
+            item_category = str(item['code'])  # Use code for lookup (matches process_syrinx_file output)
             special_price = item['special_price']
             
             if special_price and special_price != 'N/A':

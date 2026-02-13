@@ -251,7 +251,10 @@ def apply_pending_custom_prices(df):
             if item_category in item_category_to_index and price_value:
                 idx = item_category_to_index[item_category]
                 price_key = f"price_{idx}"
-                st.session_state[price_key] = str(price_value)
+                input_key = f"input_{idx}"  # Also set the input widget key
+                price_str = str(price_value)
+                st.session_state[price_key] = price_str
+                st.session_state[input_key] = price_str  # Widget key must match for display
                 prices_set += 1
         
         # Clear progress indicator and show success
